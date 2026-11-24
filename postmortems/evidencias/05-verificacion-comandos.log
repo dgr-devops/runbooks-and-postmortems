@@ -1,0 +1,95 @@
+instalación de paquetes: rc=0
+## Ubuntu 24.04 (Ubuntu 24.04.5 LTS)
+### Disco lleno
+OK    | du por directorio
+OK    | find ficheros grandes
+OK    | lsof +L1
+OK    | find -printf inodos
+OK    | truncate -s 0
+### Alta carga / CPU
+OK    | uptime y nproc
+OK    | top -b -n1
+OK    | ps ordenado por CPU
+OK    | vmstat 1 2
+OK    | procesos en estado D (awk)
+OK    | mpstat -P ALL
+OK    | pidstat
+OK    | iostat -x
+OK    | renice +10
+### Memoria
+OK    | free -h y swapon --show
+OK    | ps ordenado por memoria
+OK    | presión de memoria (PSI)
+OK    | fichero de swap: fallocate, chmod, mkswap
+### DNS
+OK    | getent hosts
+OK    | dig -v
+OK    | ip route
+OK    | nsswitch hosts
+### Certificado TLS
+OK    | generar certificado de prueba (60 días)
+OK    | openssl x509 -enddate (fichero)
+OK    | -checkend 30 días: debe pasar (60 días de vigencia)
+OK    | -checkend 90 días: debe fallar (caducaría antes)
+OK    | s_client | x509 (subject, issuer, dates)
+OK    | s_client | x509 -checkend
+### Backup
+OK    | crear tar.gz y listarlo (tar -tzf)
+OK    | gzip -t
+OK    | sha256sum -c
+OK    | restauración de prueba (tar -xzf)
+OK    | un backup truncado se detecta (debe fallar)
+### Usuario bloqueado
+OK    | useradd de prueba
+OK    | getent passwd / id
+OK    | passwd -S
+OK    | chage -l
+OK    | faillock --user
+OK    | faillock --reset
+OK    | contraseña de prueba aleatoria (chpasswd)
+OK    | passwd -l (bloquear)
+OK    | passwd -u (desbloquear)
+OK    | passwd -u se niega si la cuenta no tiene contraseña
+OK    | chage -d 0 (cambio obligatorio)
+OK    | chage -E -1 (sin caducidad de cuenta)
+OK    | lastb / last
+### SSH
+OK    | sshd -t (configuración válida)
+OK    | sshd -T filtrado
+OK    | ss -tlnp | grep sshd
+OK    | nc -vz -w 5 (puerto abierto)
+OK    | nc a puerto cerrado falla (rechazado)
+OK    | ssh sin clave: Permission denied (esperado)
+OK    | sshd -t detecta una configuración rota (debe fallar)
+OK    | sshd -t tras revertir
+### Servicio caído (parte sin systemd)
+OK    | ss -tlnp
+## archlinux:base
+instalación de paquetes: rc=0
+OK    | paccache -dk2 (simulación)
+OK    | dig (paquete bind)
+OK    | mpstat (paquete sysstat)
+OK    | faillock
+OK    | passwd -S root
+OK    | ss -tlnp
+OK    | free -h
+OK    | ps ordenado por CPU
+## postgres:16 (consultas del runbook «Base de datos lenta»; psql -U postgres sustituye a sudo -u postgres psql)
+OK    | pg_stat_activity: consultas activas
+OK    | conexiones frente a max_connections
+OK    | sesiones bloqueadas (pg_blocking_pids)
+OK    | pg_cancel_backend sobre una consulta real de prueba
+## Equipo anfitrión (Arch-based, solo lectura, sin mostrar salida)
+OK    | systemctl status (unidad existente)
+OK    | systemctl is-active
+OK    | systemctl --failed
+OK    | systemctl list-timers
+OK    | journalctl -u -n
+OK    | journalctl --disk-usage
+OK    | journalctl -k | grep oom
+OK    | resolvectl status
+OK    | timedatectl
+OK    | findmnt /
+OK    | swapon --show
+OK    | systemctl list-dependencies
+contenedores de verificación eliminados
