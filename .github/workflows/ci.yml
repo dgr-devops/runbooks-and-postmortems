@@ -1,0 +1,33 @@
+name: Lint y enlaces
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Los enlaces externos pueden romperse con el tiempo: revisión semanal.
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  markdownlint:
+    name: markdownlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DavidAnson/markdownlint-cli2-action@v19
+        with:
+          config: .markdownlint-cli2.jsonc
+          globs: "**/*.md"
+
+  enlaces:
+    name: Comprobación de enlaces
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lycheeverse/lychee-action@v2
+        with:
+          args: --config lychee.toml --no-progress './**/*.md'
+          fail: true

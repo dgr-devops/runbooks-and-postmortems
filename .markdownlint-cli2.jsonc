@@ -1,0 +1,16 @@
+{
+  // Configuración de markdownlint para este repositorio.
+  "config": {
+    "default": true,
+    // Las líneas largas son habituales en tablas y salidas de comandos.
+    "MD013": false,
+    // Las salidas reales de comandos contienen tabuladores y no se modifican.
+    "MD010": { "code_blocks": false },
+    // Varios documentos repiten encabezados (p. ej. «Resumen») en distintas secciones.
+    "MD024": { "siblings_only": true },
+    // Las plantillas usan corchetes como marcadores de posición.
+    "MD033": false
+  },
+  "globs": ["**/*.md"],
+  "ignores": ["node_modules/**", "postmortems/evidencias/**"]
+}

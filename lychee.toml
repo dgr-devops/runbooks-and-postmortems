@@ -1,0 +1,15 @@
+# Configuración de lychee (comprobación de enlaces).
+
+max_retries = 3
+retry_wait_time = 5
+timeout = 20
+accept = ["200", "206", "429"]
+
+# El repositorio puede no estar publicado todavía cuando se ejecuta la
+# comprobación (p. ej. la insignia de CI apunta a su propia URL).
+exclude = [
+  '^https://github\.com/dgr-devops/runbooks-and-postmortems',
+]
+
+# Los logs de evidencia contienen salidas literales de comandos, no documentación.
+exclude_path = ["postmortems/evidencias"]
