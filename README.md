@@ -50,6 +50,9 @@ lo provoca y el log con la salida íntegra (carpeta `postmortems/evidencias/`).
   contenedores Ubuntu 24.04, Arch y PostgreSQL 16, más comandos de solo lectura
   en mi equipo. Esto prueba que los comandos funcionan, **no** que los runbooks
   hayan resuelto incidentes reales.
+- **CI en GitHub:** el flujo [`ci.yml`](.github/workflows/ci.yml) se ejecutó en
+  GitHub Actions y pasó en verde (markdownlint y lychee), además de pasar en
+  local antes de subir.
 - **No verificado:** firewall (`ufw`, `nftables`), `fail2ban`, `certbot`,
   MySQL/MariaDB, LVM, cambios reales de `systemd-resolved`/NetworkManager,
   `systemctl restart` sobre servicios reales, entre otros.
