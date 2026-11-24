@@ -1,0 +1,93 @@
+
+[2026-11-24 09:16:15] ## Preparación (fuera del incidente): contenedor con tmpfs de 16 MB y herramientas
+[2026-11-24 09:16:15] $ docker run -d --name lab-disco --tmpfs /var/log/app:size=16m,mode=0755 ubuntu:24.04 sleep infinity | cut -c1-12
+613b9c1a0281
+apt rc=0
+
+[2026-11-24 09:16:39] ## Estado inicial
+[2026-11-24 09:16:39] (lab-disco)$ df -h /var/log/app
+Filesystem      Size  Used Avail Use% Mounted on
+tmpfs            16M     0   16M   0% /var/log/app
+
+[2026-11-24 09:16:39] ## T0: arranca la aplicación (sin rotación de logs)
+[2026-11-24 09:16:39] (lab-disco)$ nohup /opt/app-logger.sh >/dev/null 2>&1 & sleep 1; echo "pid app: $(cat /tmp/app.pid)"
+pid app: 2482
+
+[2026-11-24 09:16:42] ## Síntoma: el sistema de ficheros está al 100 % y la app registra errores
+[2026-11-24 09:16:42] (lab-disco)$ df -h /var/log/app
+Filesystem      Size  Used Avail Use% Mounted on
+tmpfs            16M   16M     0 100% /var/log/app
+[2026-11-24 09:16:42] (lab-disco)$ tail -n 3 /tmp/app.err
+08:16:42 ERROR no se puede escribir en /var/log/app/app.log
+
+[2026-11-24 09:16:42] ## Diagnóstico: ¿espacio o inodos? ¿qué ocupa?
+[2026-11-24 09:16:42] (lab-disco)$ df -i /var/log/app
+Filesystem      Inodes IUsed   IFree IUse% Mounted on
+tmpfs          4050431     2 4050429    1% /var/log/app
+[2026-11-24 09:16:42] (lab-disco)$ du -ah /var/log/app | sort -h | tail -n 3
+16M	/var/log/app
+16M	/var/log/app/app.log
+[2026-11-24 09:16:42] (lab-disco)$ ls -lh /var/log/app
+total 16M
+-rw-r--r-- 1 root root 16M Nov 24 08:16 app.log
+
+[2026-11-24 09:16:42] ## Intento incorrecto: borrar el fichero que la app mantiene abierto
+[2026-11-24 09:16:42] (lab-disco)$ rm /var/log/app/app.log
+[2026-11-24 09:16:43] (lab-disco)$ df -h /var/log/app
+Filesystem      Size  Used Avail Use% Mounted on
+tmpfs            16M   16M     0 100% /var/log/app
+[2026-11-24 09:16:43] (lab-disco)$ lsof +L1 /var/log/app
+COMMAND  PID USER   FD   TYPE DEVICE SIZE/OFF NLINK NODE NAME
+bash    2482 root    3w   REG  0,160 16777216     0    2 /var/log/app/app.log (deleted)
+sleep   2490 root    3w   REG  0,160 16777216     0    2 /var/log/app/app.log (deleted)
+
+[2026-11-24 09:16:43] ## Corrección: liberar el espacio en el descriptor retenido y parar la app
+[2026-11-24 09:16:43] (lab-disco)$ PID=$(cat /tmp/app.pid); : > /proc/$PID/fd/3; df -h /var/log/app
+Filesystem      Size  Used Avail Use% Mounted on
+tmpfs            16M     0   16M   0% /var/log/app
+[2026-11-24 09:16:43] (lab-disco)$ kill "$(cat /tmp/app.pid)"; sleep 1; df -h /var/log/app; ls -la /var/log/app
+Filesystem      Size  Used Avail Use% Mounted on
+tmpfs            16M     0   16M   0% /var/log/app
+total 0
+drwxr-xr-x 2 root root 40 Nov 24 08:16 .
+drwxr-xr-x 1 root root 68 Nov 24 08:16 ..
+
+[2026-11-24 09:16:44] ## Prevención: reiniciar la app con ritmo normal y rotación con logrotate
+[2026-11-24 09:16:44] (lab-disco)$ THROTTLE=0.05 nohup /opt/app-logger.sh >/dev/null 2>&1 & sleep 3; ls -lh /var/log/app
+total 8.0K
+-rw-r--r-- 1 root root 5.3K Nov 24 08:16 app.log
+[2026-11-24 09:16:47] (lab-disco)$ cat > /etc/logrotate.d/app <<"EOF"
+/var/log/app/app.log {
+    su root root
+    size 50k
+    rotate 3
+    compress
+    copytruncate
+    missingok
+    notifempty
+}
+EOF
+echo ok
+ok
+[2026-11-24 09:16:47] (lab-disco)$ logrotate -d /etc/logrotate.d/app 2>&1 | head -n 12
+warning: logrotate in debug mode does nothing except printing debug messages!  Consider using verbose mode (-v) instead if this is not what you want.
+
+reading config file /etc/logrotate.d/app
+Reading state from file: /var/lib/logrotate/status
+state file /var/lib/logrotate/status does not exist
+Allocating hash table for state file, size 64 entries
+
+Handling 1 logs
+
+rotating pattern: /var/log/app/app.log  51200 bytes (3 rotations)
+empty log files are not rotated, old logs are removed
+considering log /var/log/app/app.log
+[2026-11-24 09:16:47] (lab-disco)$ logrotate -f /etc/logrotate.d/app; sleep 1; ls -lh /var/log/app; df -h /var/log/app
+total 8.0K
+-rw-r--r-- 1 root root 1.8K Nov 24 08:16 app.log
+-rw-r--r-- 1 root root  391 Nov 24 08:16 app.log.1.gz
+Filesystem      Size  Used Avail Use% Mounted on
+tmpfs            16M  8.0K   16M   1% /var/log/app
+
+[2026-11-24 09:16:48] ## Limpieza
+contenedor lab-disco eliminado

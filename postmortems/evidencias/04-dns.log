@@ -1,0 +1,58 @@
+
+[2026-11-24 09:21:25] ## Preparación (fuera del incidente): contenedor con DNS normal e instalación de dig
+[2026-11-24 09:21:25] $ docker run -d --name lab-dns ubuntu:24.04 sleep infinity | cut -c1-12
+65290fecda21
+apt rc=0
+[2026-11-24 09:21:41] (lab-dns)$ time getent hosts example.com
+2606:4700:10::ac42:93f3 example.com
+2606:4700:10::6814:179a example.com
+
+real	0m0.043s
+user	0m0.000s
+sys	0m0.001s
+
+[2026-11-24 09:21:41] ## T0: cambio que provoca el incidente: el resolvedor pasa a ser 192.0.2.53 (simula un DHCP o una edición errónea)
+[2026-11-24 09:21:41] (lab-dns)$ echo "nameserver 192.0.2.53" > /etc/resolv.conf; grep ^nameserver /etc/resolv.conf
+nameserver 192.0.2.53
+
+[2026-11-24 09:21:41] ## T1: síntoma reportado: «no abre ninguna web / el servicio no conecta con example.com»
+[2026-11-24 09:21:41] (lab-dns)$ grep ^nameserver /etc/resolv.conf
+nameserver 192.0.2.53
+[2026-11-24 09:21:41] (lab-dns)$ time getent hosts example.com
+
+real	0m20.021s
+user	0m0.000s
+sys	0m0.001s
+(código de salida: 2)
+
+[2026-11-24 09:22:02] ## Diagnóstico 1: ¿hay conectividad IP? (conexión TCP directa a una IP, sin DNS)
+[2026-11-24 09:22:02] (lab-dns)$ timeout 5 bash -c "echo > /dev/tcp/1.1.1.1/443" && echo "TCP a 1.1.1.1:443 OK"
+TCP a 1.1.1.1:443 OK
+
+[2026-11-24 09:22:02] ## Diagnóstico 2: ¿responde el servidor DNS configurado?
+[2026-11-24 09:22:02] (lab-dns)$ dig @192.0.2.53 example.com +time=2 +tries=1 | tail -n 4
+; <<>> DiG 9.18.39-0ubuntu0.24.04.9-Ubuntu <<>> @192.0.2.53 example.com +time=2 +tries=1
+; (1 server found)
+;; global options: +cmd
+;; no servers could be reached
+
+[2026-11-24 09:22:04] ## Diagnóstico 3: ¿resuelve otro servidor DNS desde esta máquina?
+[2026-11-24 09:22:04] (lab-dns)$ dig @1.1.1.1 example.com A +short +time=3 +tries=3
+172.66.147.243
+104.20.23.154
+
+[2026-11-24 09:22:04] ## Resolución: apuntar el resolvedor a un servidor DNS que responde
+[2026-11-24 09:22:04] (lab-dns)$ echo "nameserver 1.1.1.1" > /etc/resolv.conf; grep ^nameserver /etc/resolv.conf
+nameserver 1.1.1.1
+
+[2026-11-24 09:22:04] ## Verificación
+[2026-11-24 09:22:04] (lab-dns)$ time getent hosts example.com
+2606:4700:10::ac42:93f3 example.com
+2606:4700:10::6814:179a example.com
+
+real	0m0.024s
+user	0m0.001s
+sys	0m0.000s
+
+[2026-11-24 09:22:04] ## Limpieza
+contenedor lab-dns eliminado

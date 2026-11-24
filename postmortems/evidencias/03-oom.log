@@ -1,0 +1,56 @@
+
+[2026-11-24 09:22:13] ## Preparación: limpiar restos de ejecuciones anteriores
+
+[2026-11-24 09:22:13] ## T0: arranca el servicio (límite de memoria 96 MB, reinicio automático hasta 2 veces)
+[2026-11-24 09:22:13] $ docker run -d --name lab-oom --memory 96m --memory-swap 96m --restart on-failure:2 -v $PWD/lab/leak-app.js:/app/leak.js:ro node:22-alpine node /app/leak.js | cut -c1-12
+08e849756d13
+
+[2026-11-24 09:22:13] ## Observación mientras crece el consumo
+[2026-11-24 09:22:16] $ docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}' lab-oom
+NAME      MEM USAGE / LIMIT   MEM %
+lab-oom   36.84MiB / 96MiB    38.38%
+[2026-11-24 09:22:17] $ docker logs --tail 3 lab-oom
+2026-11-24T08:22:16.735Z cache_chunks=6 rss=73MB
+2026-11-24T08:22:17.237Z cache_chunks=7 rss=77MB
+2026-11-24T08:22:17.739Z cache_chunks=8 rss=81MB
+[2026-11-24 09:22:25] $ docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}' lab-oom
+NAME      MEM USAGE / LIMIT   MEM %
+lab-oom   20.73MiB / 96MiB    21.59%
+
+[2026-11-24 09:22:26] ## Espera a que se agoten los reinicios automáticos (máximo 150 s)
+
+[2026-11-24 09:22:49] ## Síntoma: el contenedor está parado
+[2026-11-24 09:22:49] $ docker ps -a --filter name=^lab-oom$ --format 'table {{.Names}}\t{{.Status}}'
+NAMES     STATUS
+lab-oom   Exited (137) 1 second ago
+
+[2026-11-24 09:22:49] ## Diagnóstico: ¿lo mató el OOM killer?
+[2026-11-24 09:22:49] $ docker inspect lab-oom --format 'OOMKilled={{.State.OOMKilled}} ExitCode={{.State.ExitCode}} RestartCount={{.RestartCount}} MemLimit={{.HostConfig.Memory}}'
+OOMKilled=true ExitCode=137 RestartCount=2 MemLimit=100663296
+[2026-11-24 09:22:49] $ docker logs --tail 4 lab-oom
+2026-11-24T08:22:45.473Z cache_chunks=18 rss=122MB
+2026-11-24T08:22:45.974Z cache_chunks=19 rss=126MB
+2026-11-24T08:22:46.474Z cache_chunks=20 rss=129MB
+2026-11-24T08:22:46.975Z cache_chunks=21 rss=133MB
+[2026-11-24 09:22:49] $ docker events --since 1795508533 --until $(date +%s) --filter container=lab-oom --filter event=oom --format '{{.Time}} {{.Type}} {{.Action}} {{.Actor.Attributes.name}}'
+1795508567 container oom lab-oom
+[2026-11-24 09:22:49] $ journalctl -k --since '10 min ago' --no-pager 2>&1 | grep -i 'memory cgroup out of memory' | tail -n 2
+nov 24 09:22:36 cachyos kernel: Memory cgroup out of memory: Killed process 143686 (node) total-vm:778040kB, anon-rss:97052kB, file-rss:43568kB, shmem-rss:0kB, UID:0 pgtables:720kB oom_score_adj:0
+nov 24 09:22:47 cachyos kernel: Memory cgroup out of memory: Killed process 147780 (node) total-vm:778040kB, anon-rss:97028kB, file-rss:43472kB, shmem-rss:0kB, UID:0 pgtables:744kB oom_score_adj:0
+
+[2026-11-24 09:22:49] ## Resolución: desplegar la versión corregida (caché acotada) con el mismo límite
+[2026-11-24 09:22:49] $ docker run -d --name lab-oom-fix --memory 96m --memory-swap 96m --restart on-failure:2 -e LEAK=off -v $PWD/lab/leak-app.js:/app/leak.js:ro node:22-alpine node /app/leak.js | cut -c1-12
+1149e219ce0e
+
+[2026-11-24 09:23:04] ## Verificación: memoria estable y sin reinicios
+[2026-11-24 09:23:04] $ docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}' lab-oom-fix
+NAME          MEM USAGE / LIMIT   MEM %
+lab-oom-fix   37.62MiB / 96MiB    39.19%
+[2026-11-24 09:23:05] $ docker logs --tail 2 lab-oom-fix
+2026-11-24T08:23:04.622Z cache_chunks=4 rss=72MB
+2026-11-24T08:23:05.125Z cache_chunks=4 rss=76MB
+[2026-11-24 09:23:05] $ docker inspect lab-oom-fix --format 'OOMKilled={{.State.OOMKilled}} RestartCount={{.RestartCount}} Running={{.State.Running}}'
+OOMKilled=false RestartCount=0 Running=true
+
+[2026-11-24 09:23:05] ## Limpieza
+contenedores lab-oom y lab-oom-fix eliminados
